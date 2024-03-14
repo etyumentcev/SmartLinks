@@ -1,3 +1,8 @@
+using Redirector;
+
+using MongoDB.Driver;
+using MongoDB.Bson;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -21,5 +26,16 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+
+if (app.Environment.IsDevelopment())
+{
+    var mongoDBSettings = app.Configuration.GetSection("RedirectorMongoDB").Get<MongoDBSettings>();  
+    var client = new MongoClient(mongoDBSettings!.ConnectionURI); 
+    var database = client.GetDatabase(mongoDBSettings.DatabaseName);
+    var smartLinksCollection = database.GetCollection<BsonDocument>(mongoDBSettings.CollectionName);
+
+    await smartLinksCollection.InsertOneAsync(BsonDocument.Parse("{ someField: 1 }"));
+}
+
 
 app.Run();

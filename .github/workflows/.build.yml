@@ -19,6 +19,16 @@ jobs:
       matrix:
         os: [ubuntu-latest]
 
+    services:
+      mongodb:
+        image: mongo
+        env:
+          MONGO_INITDB_ROOT_USERNAME: root
+          MONGO_INITDB_ROOT_PASSWORD: password
+          MONGO_INITDB_DATABASE: Links
+        ports:
+          - 27017:27017
+
     steps:
     - uses: actions/checkout@v3
     - name: Setup .NET Core
