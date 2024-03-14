@@ -1,0 +1,387 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"name":"csharp"},{"aliases":[],"languageName":"pwsh","name":"pwsh"}]}}
+
+#!markdown
+
+# ПЗ №2. Подготовка проектов для старта разработки.
+
+**Цель:**  
+После выполнения задания Вы получите:  
+1. Готовый для старта разработки проект Redirector - сервис, который выполняет редиректы умных ссылок.
+1. Готовый для старта разработки проект Redirector.Tests - набор тестов проекта Redirector.
+1. GitHub Actions CI pipeline для тестирования проекта Redirector.
+
+**Замечание.** Убедитесь перед выполнением команд этого ноутбука, что текущиц каталог - это катлог PW в корне репозитория. Все относительные пути в командах определены относительно этого каталога.
+
+#!markdown
+
+1. Установите текущим корневой каталог репозитория. В коде ниже предполагается, что корневой проект репозитория `~/Documents/Projects/SmartLinks`. Если используете другой каталог, то отредактируйте переменные `ROOTDIR` и `REPO`.
+
+#!pwsh
+
+$ROOTDIR='~/Documents/Projects'
+$REPO='SmartLinks'
+cd $ROOTDIR/$REPO
+pwd
+
+#!markdown
+
+2. Создаем новую ветку Create-Solution-And-Projects-To-Start-Development
+
+#!pwsh
+
+cd $ROOTDIR/$REPO
+
+git checkout main
+git pull origin main
+git checkout -b Create-Solution-And-Projects-To-Start-Development
+
+#!markdown
+
+## .gitignore
+1. Начнем с настройки .gitignore, чтобы в репозиторий не попало ничего лишнего.  
+  
+Возпользуемся шаблоном файла .gitignore из репозитория [gitignore](https://github.com/gitignore). Этот репозиторий содержит шаблоны .gitignore для многих популярных сред разработки. Нам подойдет шаблон [VisualStudio.gitignore](https://github.com/github/gitignore/blob/main/VisualStudio.gitignore).
+
+#!pwsh
+
+cd $ROOTDIR/$REPO/..
+
+# склонируем репозиторий gitignore на рабочую машину
+git clone git@github.com:github/gitignore.git
+
+#переместим файл VisualStudio.gitignore в наш проект под именем .gitignore
+mv gitignore/VisualStudio.gitignore $REPO/.gitignore
+
+# больше репозиторий gitignore нам не нужен
+rm -r gitignore
+
+ # убедимся, что мы скопировали нужный файл
+   cat .gitignore
+
+#!markdown
+
+2. Изменения можно зафиксировать в репозитории
+
+#!pwsh
+
+cd $ROOTDIR/$REPO
+
+git add .gitignore
+git commit -m "В .gitignore добавлены исключения для .Net проектов"
+
+#!markdown
+
+## Настройка проектов Redirector и Redirector.Tests
+
+#!markdown
+
+1. Содадим solution с именем SmartLinks во вложенном каталоге SmartLinks.
+
+#!pwsh
+
+cd $ROOTDIR/$REPO
+
+mkdir SmartLinks
+cd SmartLinks
+dotnet new sln --name SmartLinks
+
+#!markdown
+
+2. Код приложений будем создавать в каталоге `src`. Каждое приложение - это отдельный проект в собственной папке.Для этого:  
+- Cоздадим катлог `src`.  
+- Создадим проект для Web API приложения, используя шаблон проекта `webapi`и контроллеры (для этого используем параметр `--use-controllers`). C помощью параметра -o укажем название проекта.
+
+#!pwsh
+
+cd $ROOTDIR/$REPO/SmartLinks
+
+mkdir src
+cd src
+dotnet new webapi --use-controllers -o Redirector
+
+#!markdown
+
+3. Проект был создан в папке Redirector. Теперь его необходимо добавить в solution, чтобы его видела система сборки MSBuild
+
+#!pwsh
+
+cd $ROOTDIR/$REPO/SmartLinks
+
+dotnet sln SmartLinks.sln add src/Redirector/Redirector.csproj
+
+#!markdown
+
+4. Проверим, что проект успешно был добавлен в проект. Для этого выполним команду `dotenet list`. Ищем выводе проект Redirector.csproj
+
+#!pwsh
+
+cd $ROOTDIR/$REPO/SmartLinks
+
+dotnet sln list
+
+#!markdown
+
+5. Настроим сразу проект для написания тестов. Тесты будем создавать в отдельной папке `tests`. А к проектам с тестами будем добавлять к имени тестируемого проекта суффикс `.Tests`.  
+- Создаем каталог `tests`.
+- Создаем проект с шаблоном проекта `xunit`, поскольку будем писать тесты на основе фреймворка xUnit.
+
+#!pwsh
+
+cd $ROOTDIR/$REPO/SmartLinks
+
+mkdir tests
+cd tests
+dotnet new xunit -o Redirector.Tests
+
+#!markdown
+
+6. Проект был создан в папке `tests/Redirector.Tests`. Теперь его необходимо добавить в solution, чтобы его видела система сборки MSBuild
+
+#!pwsh
+
+cd $ROOTDIR/$REPO/SmartLinks
+
+dotnet sln SmartLinks.sln add tests/Redirector.Tests/Redirector.Tests.csproj
+
+#!markdown
+
+7. Проверим, что проект успешно был добавлен в решение. Ищем в списке проект Redirector.Tests.csproj
+
+#!pwsh
+
+cd $ROOTDIR/$REPO/SmartLinks
+
+dotnet sln list
+
+#!markdown
+
+Добавим в Redirector.Tests зависимость на проект Redirector, на который будем писать тесты.
+
+#!pwsh
+
+cd $ROOTDIR/$REPO/SmartLinks
+
+dotnet add tests/Redirector.Tests/Redirector.Tests.csproj reference src/Redirector/Redirector.csproj
+
+#!markdown
+
+8. Для написания тестов мы будем использовать несколько пакетов:
+- Microsoft.AspNetCore.Mvc.Testing - пакет для тестирования MVC-приложений
+- Microsoft.NET.Test.Sdk - пакет для написания тестов на платформе .Net
+- SpecFlow.xUnit - пакет для написания BDD-тестов
+- SpecFlow.Plus.LivingDocPlugin - пакет для генерации отчета о прохождении BDD тестов
+- FluentAssertions - пакет, который содержит различные проверки постусловий в стиле Fluent API
+- Moq - пакет для написания Mock-объектов
+Удобнее всего добавлять зависимость на пакеты из каталога с самим проектом - в этом случае не нужно прописывать пути до файла с проектом, поэтому сначала перейдем в каталог Redirector.Tests, а затем добавим последовательно зависимости на пакеты с помощью команды dotnet add package
+
+#!pwsh
+
+cd $ROOTDIR/$REPO/SmartLinks/tests/Redirector.Tests
+
+dotnet add package Microsoft.NET.Test.Sdk
+dotnet add package Microsoft.AspNetCore.Mvc.Testing
+dotnet add package SpecFlow.xUnit
+dotnet add package SpecFlow.Plus.LivingDocPlugin
+dotnet add package FluentAssertions
+dotnet add package Moq
+
+#!markdown
+
+9. Проверим, что указанные пакеты были действительно установлены. В выводе следующей команды ищем пакеты:  
+- Microsoft.AspNetCore.Mvc.Testing
+- Microsoft.NET.Test.Sdk
+- Moq
+- SpecFlow.Plus.LivingDocPlugin
+- SpecFlow.xUnit
+- xunit
+- xunit.runner.visualstudio
+
+#!pwsh
+
+cd $ROOTDIR/$REPO/SmartLinks
+
+dotnet list package
+
+#!markdown
+
+10. Для удобства работы c BDD тестами необходимо установить расширение Visual Studio Code:
+- Specflow Tools
+
+Для этого 
+- Открываем панель расширений. Это можно сделать нажав комбинацию клавиш Ctrl + Shift + X, либо выбрав в меню View -> Extensions.
+- Устанавливаем расширение Specflow Tools for Visual Studio Code
+
+На панеле Extensions слева в строке сверху с подсказкой Поиск расширений на Marketplace набираем Specflow. 
+Нажимаем на клавишу Enter.
+В появившемся списке расширений выбираем Specflow Tools и кликаем на него мышкой.
+Справа появится описание расширения. В верхней части экрана будет кнопка Install. Нажимаем на нее. Начнется установка расширения.
+
+#!markdown
+
+11. Соберем проект. Никаких ошибок и предупреждений быть не должно.
+
+#!pwsh
+
+cd $ROOTDIR/$REPO/SmartLinks
+
+dotnet build
+
+#!markdown
+
+12. Проекты готовы к началу разработки. Настало время закоммитить сделанные изменения. 
+
+Проверим с помощью команды `git status -s -u --ignored=no`, что .gitignore настроен корректно и нет лишних файлов. В выводе не должно ничего, кроме:
+
+?? SmartLinks.sln  
+?? src/Redirector/Controllers/WeatherForecastController.cs  
+?? src/Redirector/Program.cs  
+?? src/Redirector/Properties/launchSettings.json  
+?? src/Redirector/Redirector.csproj  
+?? src/Redirector/Redirector.http  
+?? src/Redirector/WeatherForecast.cs  
+?? src/Redirector/appsettings.Development.json  
+?? src/Redirector/appsettings.json  
+?? tests/Redirector.Tests/GlobalUsings.cs  
+?? tests/Redirector.Tests/Redirector.Tests.csproj  
+?? tests/Redirector.Tests/UnitTest1.cs
+
+#!pwsh
+
+cd $ROOTDIR/$REPO/SmartLinks
+
+git status -s -u --ignored=no
+
+#!markdown
+
+12. Теперь можно делать коммит
+
+#!pwsh
+
+# Добавим все неотслеживаенмые изменения в индекс
+# Поскольку мы заранее убедились, что среди неотслеживаенмых изменений нет ничего лишнего,
+# то добавляем сразу все изменения
+git add *
+
+# коммит в локальную ветку
+git commit -m "Начальная версия проектов Redirector и Redirector.cs"
+
+#!markdown
+
+## Настройка CI с помощью GitHub Actions.
+
+1. Добавим yaml файл в папку .github/workflows для сборки и запуска тестов при pull request ветку main. Чаще pipeline запускать не стоит, чтобы не выйти за бесплатный лимит.
+
+#!pwsh
+
+cd $ROOTDIR/$REPO
+
+# создаем папку .github/workflows в корневом каталоге проекта. В этом каталоге сохраняются файлы GitGub Actions.
+mkdir -p .github/workflows
+
+# Создаем yaml файл для сборки и запуска тестов при выполнении pull request в main
+New-Item ".github/workflows/.build.yml" -ItemType File -Value @'
+name: build and test
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+    - '**.cs'
+    - '**.csproj'
+
+env:
+  DOTNET_VERSION: '8.0.102' # The .NET SDK version to use
+
+jobs:
+  build:
+
+    name: build-${{matrix.os}}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        cd SmartLinks
+        dotnet restore
+      
+    - name: Build
+      run: |
+        cd SmartLinks
+        dotnet build --configuration Release --no-restore
+
+    - name: Test
+      run: |
+        cd SmartLinks
+        dotnet test --no-restore --verbosity normal
+
+'@
+
+#!markdown
+
+2. Можно фиксировать изменения в репозитории. Но сначала вытяним последнии изменения из удаленного репозитория и посомотрим неотслеживаемые изменения. Ожидаем, что изменился только:  
+?? .github/workflows/.build.yml
+
+#!pwsh
+
+cd $ROOTDIR/$REPO
+
+git status -s -u --ignored=no
+
+#!markdown
+
+3. Добавим неотслеживаемые изменения в индекс, а затем закоммитим изменения.
+
+#!pwsh
+
+git add .github/workflows/.build.yml
+git commit -m "Добавлен CI пайплайн на GitHub"
+
+#!markdown
+
+4. Убедимся, что мы ничего не забыли закоммитить.
+
+#!pwsh
+
+cd $ROOTDIR/$REPO
+
+git status -s -u --ignored=no
+
+#!markdown
+
+5. Вытягиваем посление обновления из ветки main. Проверяем, что нет конфликтов.
+
+#!pwsh
+
+cd $ROOTDIR/$REPO
+
+git pull origin main
+
+#!markdown
+
+6. Отправляем ветку `Create-Solution-And-Projects-To-Start-Development` в удаленный репозиторий.
+
+#!pwsh
+
+cd $ROOTDIR/$REPO
+
+git push origin Create-Solution-And-Projects-To-Start-Development
+
+#!markdown
+
+7. Переходимна на GitHub и оформляем Pull Request. После того, как Pull Request будет принят настройка solution и projects завершена. Проект готов к работе!
+
+**Примечание.** Этот Pull Request принимаете самостоятельно.
+
+
+Практическое задание выполнено.
