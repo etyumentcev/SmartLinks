@@ -1,0 +1,42 @@
+name: build and test
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+    - '**.cs'
+    - '**.csproj'
+
+env:
+  DOTNET_VERSION: '8.0.102' # The .NET SDK version to use
+
+jobs:
+  build:
+
+    name: build-${{matrix.os}}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Install dependencies
+      run: |
+        cd SmartLinks
+        dotnet restore
+      
+    - name: Build
+      run: |
+        cd SmartLinks
+        dotnet build --configuration Release --no-restore
+
+    - name: Test
+      run: |
+        cd SmartLinks
+        dotnet test --no-restore --verbosity normal
