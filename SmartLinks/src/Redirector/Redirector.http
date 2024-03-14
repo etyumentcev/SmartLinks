@@ -1,0 +1,6 @@
+@Redirector_HostAddress = http://localhost:5104
+
+GET {{Redirector_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
