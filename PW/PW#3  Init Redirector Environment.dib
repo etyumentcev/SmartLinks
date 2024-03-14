@@ -1,0 +1,594 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!markdown
+
+# ПЗ#3. Подключение и настройка работы с базой данных Mongo
+
+Проект Redirector будет хранить правила редиректа для умных ссылок в СУБД MongoDB. MongoDB выбрана по следующим причинам:
+1. За один запрос к приложению Redirector оно будет выбирать из базы данных информацию, касающуюсю только одной умной ссылки.
+Тодна удобно представить все данные по одной умной ссылки одним документом вместо нескольких таблиц. В этом случае можно рассчитывать, что производительность будет лучше.
+2.  Mongo из коробки обеспечивает горизонтальное масштабирование с помощью нескольких реплик, что может быть полезно при увеличении нагрузки.
+3. В этом проекте не будет операций по изменению правил редиректа, а значит не будет никаких транзакций по обновлению данных.
+
+**Замечание.** Аргументы в пользу MongoDB весьма условны. В этом проекте можно использовать реляционную базу данных с тем же успехом. А, например, с учетом поддержки jsonb в PosgreSQL можно и в реляционной базе использовать документо-ориентированный подход, если это необходимо. Так что MongoDB была выбрана прежде всего с учебной целью. На следующих проектах ее задействовать сложнее.
+
+#!markdown
+
+## Параметры окружения
+В этом ноутбуке мы снова будем пользоваться переменными окружения, причем нам понадобятся как новые, так и переменные окружения из предыдущего задания. Чтобы не копировать эти переменные каждый раз в новый ноутбук, создадим файл .notebook.variables, куда будем записывать нужные нам переменные. Как минимум, мы туда уже можем добавить
+- `ROOTDIR`
+- `REPO`
+- `GitHubAccount`  
+Отредактируйте значения этих переменных, а также каталог из первой команды ниже, чтобы они соотвествовали Вашим актуальным значениям.  
+Нам потребуется внести изменения в .gitignore, чтобы этот файл с переменными окружения не попал в удаленный репозиторий.
+Правки .gitignore выполним в отдельной ветке Add-env-vars-to-gitignore, после чего отправим изменения в удаленный репозиторий.
+  
+Не забудьте оформить Pull Request и принять его прежде, чем перейти к следующему пункту задания.
+
+#!pwsh
+
+cd ~/Documents/Projects/SmartLinks
+git checkout main
+git pull origin main
+
+#!pwsh
+
+New-Item ".polyglot.env-vars" -ItemType File -Value @'
+ROOTDIR=~/Documents/Projects
+REPO=SmartLinks
+GithubAccount=etyumentcev
+'@
+
+#!pwsh
+
+git checkout main
+git pull origin main
+git checkout -b Add-env-vars-to-gitignore
+
+rm -f .polyglot.env-vars
+
+Add-Content -path ".gitignore" -Value @'
+*.env-vars
+'@
+
+git add .gitignore
+git commit -m "Добавлено в gitignore исключение для файлов .env-vars"
+git push origin Add-env-vars-to-gitignore
+
+#!markdown
+
+Прочитаем файл с настройками
+
+#!pwsh
+
+get-content .polyglot.env-vars | foreach {
+    $name, $value = $_.split('=')
+    set-content env:\$name $value
+}
+
+#!markdown
+
+## Запуск MongoDB с помощью docker-compose.
+
+Нам необходимо запустить экземпляр MongoDB и Mongo Express. Mongo Express нужен для удобства отладки, чтобы можно было всегда зайти на сервер MongoDB через графический интерфейс: посмотреть состояние коллекций, изменить документы.  
+1. Создадим ветку Init-Redirector-Environment, в которой будем настраивать подключение проекта Redirector к базе данных Mongo.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/
+
+git checkout main
+git pull origin main
+git checkout -b Init-Redirector-Environment
+
+#!markdown
+
+2. Запускать СУБД MongoDB будем в докер контейнерах. Для этого создадим в каталоге `SmartLinks/src/Redirector` `docker-compose.yaml` файл.  
+Будем использовать версию 3.8 и добавим раздел `services`, где будем описывать нужные docker контейнеры.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+rm -f docker-compose.yaml
+
+New-Item "docker-compose.yaml" -ItemType File -Value @'
+version: "3.8"
+
+services:
+'@
+
+#!markdown
+
+3. Каждый из сервисов описывается по следующему шаблону:
+
+```
+  <srv_name>:  
+    image: <image_name>  
+    container_name: <container_name>  
+    hostname: <hostname>  
+    restart: unless-stopped  
+    environment:  
+      var_name: "var_value"  
+    networks:  
+      - <описание сети>
+```
+
+Добавим контейнер MongoDB, используя шаблон выше:  
+
+сервис (название придумали сами)
+
+```
+  mongo:
+```
+Задаем образ docker контейнера. Имя образа смотрим на DockerHub. 
+Tag пока возьмем latest, но в будущем зафиксируем версию.
+
+```
+    image: mongo:latest
+```
+имя контейнера (название придумываем сами, его будем использовать для указания зависимостей)
+```
+    container_name: mongo-redirector
+```
+указываем стратегию перезапуска контейнера в случае падения
+```
+    restart: unless-stopped 
+    environment:
+```
+Задаем значения переменных окружения `MONGO_INITDB_ROOT_USERNAME`, `MONGO_INITDB_ROOT_PASSWORD`. Они необходимы, чтобы указать MongoDB пользователя с правами администратора. Иначе на сервер MongoDB может зайти кто угодно и получить контроль над операционной системой. Запуск MongoDB без пользователя с правами администратора небезопасно.  
+```
+        - MONGO_INITDB_ROOT_USERNAME=root
+        - MONGO_INITDB_ROOT_PASSWORD=password
+```
+Пока пароли будем хранить в открытом виде, чтобы не усложнять понимание текущей темы, но в будущем скорим их через переменные окружения и хранилища секретов. 
+
+Пробрасываем порты из докер-контейнера наружу:
+```
+    ports:
+      - "27017:27017"
+```
+Указываем имя сети:
+```
+    networks:
+      - smartlinks-net
+```
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+Add-Content -path "docker-compose.yaml" -Value @'
+
+  mongo:
+    image: mongo:latest
+    container_name: mongo-redirector
+    environment:
+        - MONGO_INITDB_ROOT_USERNAME=root
+        - MONGO_INITDB_ROOT_PASSWORD=password
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    networks:
+      - smartlinks-net
+'@
+
+#!markdown
+
+4. Теперь добавим в docker-compose.yaml Mongo Express:  
+
+```
+mongo-express:
+    image: mongo-express
+    container_name: mexpress-redirector
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=root
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=password
+      - ME_CONFIG_MONGODB_URL=mongodb://root:password@mongo:27017/?authSource=admin
+      - ME_CONFIG_BASICAUTH_USERNAME=mexpress
+      - ME_CONFIG_BASICAUTH_PASSWORD=mexpress
+    links:
+      - mongo-redirector
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    networks:
+      - smartlinks-net
+```
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+Add-Content -path "docker-compose.yaml" -Value @'
+  
+  mongo-express:
+    image: mongo-express
+    container_name: mexpress
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=root
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=password
+      - ME_CONFIG_MONGODB_URL=mongodb://root:password@mongo-redirector:27017/?authSource=admin
+      - ME_CONFIG_BASICAUTH_USERNAME=mexpress
+      - ME_CONFIG_BASICAUTH_PASSWORD=mexpress
+    depends_on:
+      - mongo
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    networks:
+      - smartlinks-net
+'@
+
+#!markdown
+
+5. Указываем драйвер для сети:
+
+```
+networks:
+  smartlinks-net:
+    driver: bridge
+```
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+Add-Content -path "docker-compose.yaml" -Value @'
+
+networks:
+  smartlinks-net:
+    driver: bridge
+'@
+
+#!markdown
+
+6. Проверим, что мы правильно настроили запуск двух контейнеров: 
+
+#!pwsh
+
+# Перейдем в каталог с файлом docker-compose.yaml - разворачивать серисы надо из каталога с этим файлом
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+# Развернем сервисы с помощью docker-compose
+docker-compose up -d
+
+#!markdown
+
+7. Выполним команду `doecker ps`, чтобы посмотреть список запущенных контейнеров. Ищем в списке имя контейнеров (колонка Names - крайняя справа) mongo-redirecor и mexpress. Обращаем внимание на статус контейнера - должен быть запущен.
+
+#!pwsh
+
+docker ps
+
+#!markdown
+
+8. Теперь можно открыть в браузере [Mongo Express](http://localhost:8081). Пользователь: mexpress, пароль: mexpress - мы их сами задали в переменных окружения `ME_CONFIG_BASICAUTH_USERNAME`, `ME_CONFIG_BASICAUTH_PASSWORD`.
+
+#!markdown
+
+9. Если контейнеры успешно запустились и получилось зайти на сервер MongoDB с помощью Mongo Express, то остановим конейнеры и закоммитим файл docker-compose.yaml в репозиторий.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+docker-compose down
+# Проверим, что конвейеры остановились
+docker ps
+
+# Добавим docker-compose.yaml в индекс
+git add docker-compose.yaml
+
+git commit -m "Настроен запуск MongoDB И Mongo Express для проекта Redirector"
+
+#!markdown
+
+10. Теперь настроим GitHub CI, чтобы можно было использовать MongoDB в тестах.
+
+Следующий код необходимо добавить в `.github/workflows/build.yml`: 
+
+```
+mongo:
+    image: mongo:latest
+    container_name: mongo-redirector
+    environment:
+        - MONGO_INITDB_ROOT_USERNAME=root
+        - MONGO_INITDB_ROOT_PASSWORD=password
+    ports:
+      - "27017:27017"
+```
+По сути запускаем тот же контейнер MongDB.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO
+
+(Get-Content ".github/workflows/.build.yml") | 
+    Foreach-Object {
+        $_ # send the current line to output
+        if ($_ -match "os:") 
+        {
+            @'
+
+    services:
+      mongodb:
+        image: mongo
+        env:
+          MONGO_INITDB_ROOT_USERNAME: root
+          MONGO_INITDB_ROOT_PASSWORD: password
+          MONGO_INITDB_DATABASE: Links
+        ports:
+          - 27017:27017
+'@
+        }
+    } | Set-Content ".github/workflows/.build.yml"
+
+#!markdown
+
+11. Мы сделали важные изменения - пора сделать commit.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO
+
+# Добавим изменения build.yml в индекс
+git add .github/workflows/.build.yml
+
+git commit -m "При запуске GitHub pipeline запускается MongoDB для интеграционных тестов проекта Redirector"
+
+#!markdown
+
+## Подключение к базе данных из приложения Redirector
+
+1. Добавим в проект `src/Redirector` зависимость от пакета MongoDB.Driver.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+dotnet add package MongoDB.Driver
+
+#!markdown
+
+2. Добавим в файл `appsettings.Developement.json` параметры для подключения в СУБД MongoDB в режиме разработки.  
+Необходимо задать:  
+  
+Этот параметр мы будем передавать клиенту Mongo для подключения к базе данных.
+- `ConnectionURI` - cтроку подключения к MongoDB,  
+
+Следующие два параметра мы будем сами импользовать в нашем приложении для большей гибкости:
+- `DatabaseName` - имя базы данных с коллекциями приложениями Redirector, 
+- `CollectionName`- имя коллекции с правилами редиректов для умеых ссылок.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+(Get-Content "appsettings.Development.json") | 
+    Foreach-Object {
+        $_ # send the current line to output
+        if ($_ -match "    }") 
+        {
+            @'
+  },
+  "RedirectorMongoDB": {
+    "ConnectionURI": "mongodb://root:password@localhost:27017",
+    "DatabaseName": "Links",
+    "CollectionName": "links"
+'@
+        }
+    } | Set-Content "appsettings.Development.json"
+
+#!markdown
+
+3. Определим класс `MongoDBOptions` для чтения параметров конфигурации:
+```
+public class MongoDBSettings
+{
+    public string ConnectionURI { get; set; } = null!;
+    public string DatabaseName { get; set; } = null!;
+    public string CollectionName { get; set; } = null!;
+}
+```
+Чтобы не пришлось писать лишних правил преобразования предерживаемся соглашений по умолчанию - каждый параметр должен быть публичным свойством для чтения и записи, имена свойств должны совпадать с именами полей в файле конфигурации вплоть до символов.  
+  
+Сам класс определим в пространстве имен Redirector, и разместим в одноименном файле MongoDBSettings.cs в каталоге MongoDB проекта Redirector.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+mkdir -p MongoDB
+cd MongoDB
+
+New-Item "MongoDBSettings.cs" -ItemType File -Value @'
+namespace Redirector;
+
+public class MongoDBSettings
+{
+    public string ConnectionURI { get; set; } = null!;
+    public string DatabaseName { get; set; } = null!;
+    public string CollectionName { get; set; } = null!;
+}
+
+'@
+
+#!markdown
+
+4. Добавим следующий код, чтобы он выполнялся только в режиме разработки (`app.Environment.IsDevelopment()`).  
+  
+Чтение конфигурационной секции с настройками MongoDB
+```
+  var mongoDBSettings = app.Configuration.GetSection("RedirectorMongoDB").Get<MongoDBSettings>();
+```
+  
+Создаем экземпляр объекта для подключения к MongoDB:  
+```
+  var client = new MongoClient(mongoDBSettings!.ConnectionURI); 
+```
+  
+Содаем объект, представляющий базу данных:
+```
+  var database = client.GetDatabase(mongoDBSettings.DatabaseName);
+```
+  
+Создаем объект, представляющий коллекцию с правилами редиректа для умных ссылок:
+```
+  var smartLinksCollection = database.GetCollection<BsonDocument>(mongoDBSettings.CollectionName);
+```
+  
+**Замечание.** Если базы данных или коллекции не существует на сервере, то они будут созданы автоматически.
+
+Для того, чтобы этот код компилировался необходимо подключить два пространства имен:
+- `MongoDB.Driver`,
+- `MongoDB.Bson`.
+
+Код добавляем в `Program.cs`.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+(Get-Content "Program.cs") | 
+    Foreach-Object {
+        if ($_ -match "CreateBuilder") 
+        {
+            @'
+using Redirector;
+
+using MongoDB.Driver;
+using MongoDB.Bson;
+
+'@
+        }
+        $_ # send the current line to output
+        if ($_ -match "MapControllers") 
+        {
+            @'
+
+if (app.Environment.IsDevelopment())
+{
+    var mongoDBSettings = app.Configuration.GetSection("RedirectorMongoDB").Get<MongoDBSettings>();  
+    var client = new MongoClient(mongoDBSettings!.ConnectionURI); 
+    var database = client.GetDatabase(mongoDBSettings.DatabaseName);
+    var smartLinksCollection = database.GetCollection<BsonDocument>(mongoDBSettings.CollectionName);
+}
+
+'@      
+    }} | Set-Content "Program.cs"
+
+#!markdown
+
+5. Проверим, что проект собирается.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+dotnet build
+
+#!markdown
+
+6. Убедимся, что можем подключиться к базе данных, выполнив вставку в коллекцию `smartLinkCollections`. Проверку надо делать, даже, если весь код выполнится без выброса исключений, так как для классов работы с базами данных обычно используется ленивая инициализация: подключение к базе не происходит до тех пор, пока не выполится какой-либо запрос к БД. И исключения возникают в момент выполнения запроса.  
+Из всех возможных запросов выберем вставку в коллекцию, так как операции вставки нам понадобятся при разработки следующих задач и нам все равно придется разбираться, как сделать вставку документа в Mongo:
+```
+await smartLinksCollection.InsertOneAsync(BsonDocument.Parse("{ someField: 1 }"));
+```
+Добавим этот код в файл `Program.cs` сразу после строки:  
+```
+    var smartLinksCollection = database.GetCollection<BsonDocument>(mongoDBSettings.CollectionName);
+```
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+(Get-Content "Program.cs") | 
+    Foreach-Object {
+        $_ # send the current line to output
+        if ($_ -match "mongoDBSettings.CollectionName") 
+        {
+            @'
+
+    await smartLinksCollection.InsertOneAsync(BsonDocument.Parse("{ someField: 1 }"));
+'@      
+    }} | Set-Content "Program.cs"
+
+#!markdown
+
+7. Собираем проект, запускаем MongoDB через docker-compose.  
+Затем запускаем приложение, дожидаемся, когда следующий блок с командами завершит свое выполнение.  
+Затем переходим в [Mongo Express](http://localhost:8081).  
+  
+Если в Mongo Express в базе данных Links есть непустая коллекция links, то мы успешно подключились к MongoDB.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+pwd
+
+# собираем приложение
+dotnet build
+
+# запускаем MongoDB и Mongo Express
+# здесь параметр -d нужен, чтобы не держать консоль и дать возможность выполнить следующие команды
+docker-compose up -d
+
+# запускаем приложение Redirector
+Start-Process dotnet 'run --no-build --urls=http://localhost:5001/ --launch-profile https'
+Start-Sleep -Seconds 30
+Stop-Process -Name Redirector
+
+#!markdown
+
+8. Останавливаем MongoDB.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+docker-compose down
+
+#!markdown
+
+9. Перед коммитом проверим сделанные изменения, чтобы в коммит не попало ничего лишнего
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO
+
+git status -s
+
+#!markdown
+
+10. Выполним коммит.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO
+
+git add *
+git commit -m "Приложение Redirector подключается к MongoDB"
+
+#!markdown
+
+11. Отправим изменения в удаленный репозиторий в ветку
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO
+
+git push origin Init-Redirector-Environment
+
+#!markdown
+
+12. переходим на GitHub, оформляем Pull Request.  
+После того, как Pull Request будет принят задание будет завершено.  
+  
+**Примечание.** Этот Pull Request принимаете самостоятельно.
+
+
+Практическое задание выполнено.
