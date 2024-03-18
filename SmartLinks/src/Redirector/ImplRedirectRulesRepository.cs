@@ -27,7 +27,8 @@ public class ImplRedirectRulesRepository(
         if(document == null)
         {
           FilterDefinition<BsonDocument> filter = Builders<BsonDocument>.Filter.Eq("slug", smartLink);
-          document = await collection.Find(filter).FirstOrDefaultAsync();
+          var result = await collection.Find(filter).FirstOrDefaultAsync();
+          document = result != null && result.GetValue("state", "published") != "deleted" ? result : null;
         }
     }
 }
