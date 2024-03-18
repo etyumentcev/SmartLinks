@@ -27,6 +27,13 @@ builder.Services.AddScoped<ISupportedHttpRequest, SupportedHttpRequest>();
 // Attach ReturnsNotFoundFacadeForMongoDB
 builder.Services.AddScoped<IRedirectRulesRepository, RedirectRulesRepository>();
 
+//Register ReturnsUnprocessableContentFeature
+builder.Services.AddTransient<The_App_Responses_422_Uprocessable_Content_Middleware>();
+// Attach ReturnsUnprocessableContentFacadeForRepository
+builder.Services.AddScoped<IFreezableSmartLink, FreezableSmartLink>();
+// Attach ReturnsNotFoundFacadeForMongoDB
+builder.Services.AddScoped<ILoadableRedirectRulesRepository, RedirectRulesRepository>();
+
 // Add the dependency from IHttpContextAccessor
 builder.Services.AddHttpContextAccessor();
 
@@ -49,6 +56,8 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 // Attach ReturnsNotFoundFeature 
 app.UseMiddleware<The_App_Responses_404_Not_Found_Middleware>();
+// Attach ReturnsUnprocessableContentFeature
+app.UseMiddleware<The_App_Responses_422_Uprocessable_Content_Middleware>();
 
 app.MapControllers();
 
