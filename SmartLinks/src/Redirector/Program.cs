@@ -23,16 +23,16 @@ builder.Services.AddSingleton<IMongoCollection<BsonDocument>>(sp =>
 //Register ReturnsNotFoundFeature
 builder.Services.AddTransient<The_App_Responses_404_Not_Found_Middleware>();
 // Attach ReturnsNotFoundFacadeForHttp 
-builder.Services.AddScoped<ISupportedHttpRequest, SupportedHttpRequest>();
+builder.Services.AddScoped<ISupportedHttpRequest, ImplSupportedHttpRequest>();
 // Attach ReturnsNotFoundFacadeForMongoDB
-builder.Services.AddScoped<IRedirectRulesRepository, RedirectRulesRepository>();
+builder.Services.AddScoped<IRedirectRulesRepository, ImplRedirectRulesRepository>();
 
 //Register ReturnsUnprocessableContentFeature
 builder.Services.AddTransient<The_App_Responses_422_Uprocessable_Content_Middleware>();
 // Attach ReturnsUnprocessableContentFacadeForRepository
-builder.Services.AddScoped<IFreezableSmartLink, FreezableSmartLink>();
+builder.Services.AddScoped<IFreezableSmartLink, ImplFreezableSmartLink>();
 // Attach ReturnsNotFoundFacadeForMongoDB
-builder.Services.AddScoped<ILoadableRedirectRulesRepository, RedirectRulesRepository>();
+builder.Services.AddScoped<ILoadableRedirectRulesRepository, ImplRedirectRulesRepository>();
 
 // Add the dependency from IHttpContextAccessor
 builder.Services.AddHttpContextAccessor();

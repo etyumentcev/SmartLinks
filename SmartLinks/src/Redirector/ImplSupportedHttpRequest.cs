@@ -1,6 +1,6 @@
 namespace Redirector;
 
-public class SupportedHttpRequest(IHttpContextAccessor accessor) : ISupportedHttpRequest
+public class ImplSupportedHttpRequest(IHttpContextAccessor accessor) : ISupportedHttpRequest
 {
   static string[] supportedHttpMethods = new string[] {"GET", "HEAD"};
 

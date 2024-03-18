@@ -3,9 +3,9 @@ namespace Redirector;
 using MongoDB.Driver;
 using MongoDB.Bson;
 
-public class RedirectRulesRepository(IMongoCollection<BsonDocument> collection) 
-  : IRedirectRulesRepository,
-    ILoadableRedirectRulesRepository
+public class ImplRedirectRulesRepository(
+    IMongoCollection<BsonDocument> collection
+) : IRedirectRulesRepository, ILoadableRedirectRulesRepository
 {
     BsonDocument? document = null;
 
