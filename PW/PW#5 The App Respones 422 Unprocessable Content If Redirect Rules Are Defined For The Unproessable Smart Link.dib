@@ -1,0 +1,114 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"name":"csharp"},{"aliases":[],"languageName":"pwsh","name":"pwsh"}]}}
+
+#!markdown
+
+# ПЗ №5. Функция: Как пользователь, я могу попытаться открыть в браузере умную ссылку, для которой невозможно опреелить редирект, и увидеть 422 ошибку, чтобы понять, что для умной ссылки правила определены, но их невозможно обработать.
+
+**Цель:**  
+После выполнения задания Вы:  
+1. реализуете функцию ReturnsUnprocessableContentFeature по аналогии с ReturnsNotFoundFeature.
+
+#!markdown
+
+## Настройка окружения
+
+#!pwsh
+
+cd ~/Documents/Projects/SmartLinks
+
+get-content .polyglot.env-vars | foreach {
+    $name, $value = $_.split('=')
+    set-content env:\$name $value
+}
+
+#!markdown
+
+## Написание сценария Приложение отвечает 422 Unprocessable Content ошибкой на GET запрос, если правила редиректа умной ссылки определяют, что ее редирект временно приостановлен.
+
+#!markdown
+
+1. Прежде, чем приступить к реализации задfчи, создадим новую ветку The-App-Respones-422-Unprocessable-Content-If-Redirect-Rules-Are-Defined-For-The-Unproessable-Smart-Link
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO
+
+git checkout main
+git pull origin main
+git checkout -b The-App-Respones-422-Unprocessable-Content-If-Redirect-Rules-Are-Defined-For-The-Unproessable-Smart-Link
+
+#!markdown
+
+2. В проекте Redirector.Tests создайте каталог ReturnsUnprocessableContentFeature.  
+  
+3. Добавьте в этот каталог файл ReturnsUnprocessableContent.feature.  
+  
+4. В этом файле определите на русском языке:
+- Функцию Как пользователь, я могу попытаться открыть в браузере умную ссылку, для которой невозможно опреелить редирект, и увидеть 422 ошибку, чтобы понять, что для умной ссылки правила определены, но их невозможно обработать.
+- Сценарий Приложение отвечает 422 Unprocessable Content ошибкой на GET запрос, если правила редиректа умной ссылки определяют, что ее редирект временно приостановлен  
+c шагами:
+  - Дано Правила редиректа умной ссылки /freezed определяют, что ее редирект временно приостановлен
+  - Когда Клиент отправляет GET-запрос на url /freezed
+  - Тогда Приложение отвечает 422 Unprocessable Content ошибкой  
+  
+5. Добавьте в этот каталог ReturnsUnprocessableContent.Step.Definitions.cs.  
+  
+6. Определите шаги теста по аналогии с шагами теста ReturnsNotFound.Step.Definitions.cs
+  
+7. Запустите тесты и убедитесь, что этот тест запускается корректно, но в тоже времяя завершается с ошибкой - должно быть сообщение, что коды ответа не совпадают.
+
+#!markdown
+
+## Реализация сценария Приложение отвечает 422 Unprocessable Content ошибкой на GET запрос, если правила редиректа умной ссылки определяют, что ее редирект временно приостановлен.
+
+1. В проекте Redirector создайте каталог ReturnsUnprocessableContentFeature.
+2. По аналогии с ReturnsNotFoundFeature определите middldeware The_App_Responses_422_Unprocessable_Content_Middleware. Middleware должно зависеть от интерфейса:
+- IFreezableSmartLink - умная ссылка, у которой есть признак, по которому можно понять - приостановлены правила редиректа по этой ссылке или нет.
+3. Реализация IFeezableSmartLink должна зависеть от интерфейсов:
+- ISupportedHttpRequest - он был уже определен при реализации функции ResponsesNotFoundFeature,
+  ILoadableRedirectRulesRepository - репозиторий, который отвечает за загрузку правил редиректа в память.
+4. Добавьте ILoadableRedirectRulesRepository в реализацию RedirectRulesRepository.
+5. Зарегистрируйте зависимости в Program.cs для:
+- The_App_Responses_422_Unprocessable_Content_Middleware,
+- IFreezableSmartLink,
+- ILoadableRedirectRulesRepository.
+6. Добавьте middleware The_App_Responses_422_Unprocessable_Content_Middleware в конвейер обработки запросов сразу после midleware The_App_Responses_404_Not_Found_Middleware.
+7. Запустите тесты и проверьте, что все тесты выполняются.
+
+#!markdown
+
+## Написание сценария Приложение не отвечает 422 Unprocessable Content ошибкой на GET запрос, если правила редиректа умной ссылки определяют, что ее редирект не был временно приостановлен
+
+1. Добавьте в проект тестов Redirector.Tests
+
+Сценарий: Приложение не отвечает 422 Unprocessable Content ошибкой на GET запрос, если правила редиректа умной ссылки определяют, что ее редирект не был временно приостановлен
+    Дано Правила редиректа умной ссылки /unfreezed не приостанавливают временно ее редирект
+    Когда Клиент отправляет GET-запрос на url /unfreezed
+   Тогда Приложение не отвечает 422 Unprocessable Content ошибкой  
+  
+2. Определите реализацию шагов сценария.
+3. Запустите тесты и проверьте, что все тесты выполняются.
+
+#!markdown
+
+Осталось закоммитить изменения и оформить Pull Request.
+
+#!pwsh
+
+git status -s
+git add *
+
+#!markdown
+
+Убедимся, что в репозитории нет ничего лишнего. Затем смержим последние изменения из ветки main и сделаем коммит.
+
+#!pwsh
+
+git pull origin main
+git commit -m "Функция: Как пользователь, я могу попытаться открыть в браузере умную ссылку, для которой невозможно опреелить редирект, и увидеть 422 ошибку, чтобы понять, что для умной ссылки правила определены, но их невозможно обработать"
+
+#!markdown
+
+Отправим измеенния в удаленный репозиторий и оформляем Pull Request. Pull Request сдаем на проверку.
