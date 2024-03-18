@@ -72,4 +72,19 @@ public sealed class NotFoundStepDefinitions
   }
 
   // Определение шагов завершено
+
+  // Сценарий: Приложение отвечает 404 Not Found ошибкой на GET запрос,
+  // если для запрашиваемой умной ссылки правила редиректа были помечены как удаленные
+
+  [Given("Для умной ссылки /deleted правила редиректа были помечены как удаленные")]
+  public async Task Given_Redirect_Rules_Are_Marked_As_Deleted_For_deleted_SmartLink()
+  {
+    await _smartLinksCollection.InsertOneAsync(BsonDocument.Parse("{ slug: \"/deleted\", \"state\": \"deleted\" }"));
+  }
+ 
+  [When("Клиент отправляет GET-запрос на url /deleted")]
+  public async Task A_Client_Sends_Get_Request_On_Url_deleted()
+  {
+    _response = await _client!.GetAsync("/deleted");
+  }
 }
