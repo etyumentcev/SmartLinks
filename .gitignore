@@ -398,3 +398,5 @@ FodyWeavers.xsd
 *.sln.iml
 .env-vars
 *.env-vars
+
+*.feature.cs
