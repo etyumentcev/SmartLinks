@@ -1,0 +1,959 @@
+#!meta
+
+{"kernelInfo":{"defaultKernelName":"csharp","items":[{"aliases":[],"languageName":"csharp","name":"csharp"}]}}
+
+#!markdown
+
+# ПЗ#4.  US: Я, как пользователь, могу открыть несуществующую умную ссылку в браузере и увидеть 404 ошибку, чтобы понять, что такой ссылки не существует.  
+
+При запросе умной ссылке приложение Redirector производит поиск в коллекции Links.links по части path URL документа, описывающего правила редиректа для этой умной ссылки. Если документ не найден, то  Redirector возвращает 404 ошибку. 
+
+#!markdown
+
+## Параметры окружения
+В этом ноутбуке мы снова будем пользоваться переменными окружения.
+
+#!pwsh
+
+cd ~/Documents/Projects/SmartLinks
+
+#!markdown
+
+Прочитаем файл c настройками, созданный в задании №3, и установим значения переменных:
+
+#!pwsh
+
+get-content .polyglot.env-vars | foreach {
+    $name, $value = $_.split('=')
+    set-content env:\$name $value
+}
+
+#!markdown
+
+Создаем ветку The-App-Respones-404-Not-Found-If-Redirect-Rules-Are-Not-Defined-For-The-SmartLink для решения практического задания:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO
+git checkout main
+git pull origin main
+git checkout -b The-App-Respones-404-Not-Found-If-Redirect-Rules-Are-Not-Defined-For-The-SmartLink
+
+#!markdown
+
+Удаляем ненужные файлы, которые были сгенерированы шаблоном:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests
+
+rm -f UnitTest1.cs
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+rm -f WeatherForecast.cs
+
+rm -rf Controllers
+
+#!markdown
+
+## Сценарий Приложение отвечает 404 Not Found ошибкой на GET запрос, если для запрашиваемой умной ссылки не определены правила редиректа
+
+#!markdown
+
+1. Определим реализацию сервера для тестов:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests
+
+rm -f testserver.cs
+
+New-Item "testserver.cs" -ItemType File -Value @'
+namespace Redirector.Tests;
+
+using Microsoft.AspNetCore.Mvc.Testing;
+
+public class CustomWebApplicationFactory<TProgram>
+    : WebApplicationFactory<TProgram> where TProgram : class
+{
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.ConfigureServices(services =>
+        {            
+        });
+
+        builder.UseEnvironment("Development");
+    }
+}
+
+'@
+
+#!markdown
+
+2. Generic CustomWebApplicationFactory в качестве параметра получает класс Program, содержащий точку входа в приложение, в качестве параметра. Поскольку мы используем синтаксис, то компилятор сам сгенерирует класс за нас, куда поместит написанный нами код в файле Program.cs. Но тогда дженерику будет неизвестен тип Program во время сборки. Чтобы устранить эту проблему, добавим в Program.cs частичное пустое определение класса Progra -оно нужно только для того, чтобы в нашем коде был доступен идентфикатор Program. 
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+Add-Content -path "Program.cs" -Value @'
+
+public partial class Program { }
+
+'@
+
+#!markdown
+
+3. Сменим целевой фреймворк проекта тестами с  
+`Microsoft.NET.Sdk`  
+на  
+`Microsoft.NET.Sdk.Web`.  
+  
+Для этого откроем файл проекта `Redirector.Tests.csproj` и в первой строке сделаем соотвествующую правку:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests
+
+(Get-Content "Redirector.Tests.csproj") | 
+    Foreach-Object {
+        if ($_ -match "Project Sdk") 
+        {
+            @'
+<Project Sdk="Microsoft.NET.Sdk.Web">
+'@
+        }
+        else
+        {
+          $_
+        }
+    } | Set-Content "Redirector.Tests.csproj"
+
+#!markdown
+
+4. Определим интеграционный тест в формате Gerkhin:
+  
+```
+Сценарий: Приложение отвечает 404 Not Found ошибкой на GET запрос, если для запрашиваемой умной ссылки не определены правила редиректа
+    Дано Для умной ссылки /non-exists не определены правила редиректа
+    Когда Клиент отправляет GET-запрос на url /non-exists 
+    Тогда Приложение отвечает 404 Not Found ошибкой
+```
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests
+
+rm -rf ReturnsNotFoundFeature
+mkdir ReturnsNotFoundFeature
+cd ReturnsNotFoundFeature
+
+New-Item "ReturnsNotFound.feature" -ItemType File -Value @'
+#language: ru-RU
+Функция: Как пользователь, я могу попытаться открыть в браузере умную ссылку, для которой не определены правила редиректа, и увидеть 404 ошибку, чтобы понять, что такой умной ссылки не существует.
+
+Сценарий: Приложение отвечает 404 Not Found ошибкой на GET запрос, если для запрашиваемой умной ссылки не определены правила редиректа
+    Дано Для умной ссылки /non-exists не определены правила редиректа
+    Когда Клиент отправляет GET-запрос на url /non-exists 
+    Тогда Приложение отвечает 404 Not Found ошибкой
+
+'@
+
+#!markdown
+
+### Определим шаги сценария ReturnsNotFound
+  
+1. Шаги определяются в отдельном.cs файле. Имя файла с шагами задается по правилу: если имф файла с функцией: <название>.feature, то имя файла с шагами должно быть <название>.Step.Definitions.cs. В нашем случае имя файла с шагами:  
+  `ReturnsNotFound.Step.Definitions.cs`.  
+
+Каждый шаг представляется публичным методом, который ничего не возвращает.  
+
+Для привязки метода к шагу теста для метода необходимо указать атрибут;
+- Given - для шага Given (Дано),
+- When - для шага When (Когда),
+- Then - для шага Then (Тогда).
+  
+Любой из перечисленных атрибутов имеет параметр - строка, символ в символ (за исключением параметров), совпадающая с формулировкой этого шага в тесте.  
+  
+Получаем такое определение класса с шагами:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests/ReturnsNotFoundFeature
+rm -f ReturnsNotFound.Step.Definitions.cs
+
+New-Item "ReturnsNotFound.Step.Definitions.cs" -ItemType File -Value @'
+namespace Redirector.Tests;
+
+using TechTalk.SpecFlow;
+using Microsoft.AspNetCore.Mvc.Testing;
+
+[Binding]
+public sealed class NotFoundStepDefinitions
+{
+  // Функция: Приложение отвечает 404 Not Found ошибкой на GET запрос,
+  // если для запрашиваемой умной ссылки не определены правила редиректа
+
+  [Given("Для умной ссылки /non-exists не определены правила редиректа")]
+  public void Given_Redirect_Rules_Are_Not_Defined_For_non_exists_SmartLink()
+  {
+    // Given
+  }
+ 
+  [When("Клиент отправляет GET-запрос на url /non-exists")]
+  public async Task A_Client_Sends_Get_Request_On_Url_non_exists()
+  {
+    // When
+  }
+  
+  [Then("Приложение отвечает 404 Not Found ошибкой")]
+  public void The_App_Resonses_With_404_Not_Found_Error()
+  {
+    // Then
+  }
+
+  // Определение шагов завершено
+}
+
+'@
+
+#!markdown
+
+2. Для шага "Для умной ссылки /non-exists не определены правила редиректа" определять ничего не нужно, потому что суть теста в том, что для данной ссылке нет данных в системе. Оставим метод пустым.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests/ReturnsNotFoundFeature
+
+(Get-Content "ReturnsNotFound.Step.Definitions.cs") | 
+    Foreach-Object {
+        if ($_ -match "// Given") 
+        {
+        }
+        else
+        {
+          $_
+        }
+    } | Set-Content "ReturnsNotFound.Step.Definitions.cs"
+
+#!markdown
+
+3. На шаге Клиент отправляет GET-запрос на url /non-exists" отправим GET-запрос на url "/non-exists".  
+Для этого нам понадобится HTTP-клиент:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests/ReturnsNotFoundFeature
+
+(Get-Content "ReturnsNotFound.Step.Definitions.cs") | 
+    Foreach-Object {
+        if ($_ -match "// Функция: Приложение отвечает 404 Not Found ошибкой на GET запрос,") 
+        {
+@'
+  readonly WebApplicationFactory<Program> _factory;
+  readonly HttpClient _client; 
+
+  HttpResponseMessage? _response;
+
+  public NotFoundStepDefinitions(WebApplicationFactory<Program> factory)
+  {
+    _factory = factory;
+    _client = _factory.CreateClient(new WebApplicationFactoryClientOptions{ AllowAutoRedirect = false,});
+    _client.BaseAddress = new Uri("https://localhost"); //avoid https redirect warning 
+  }
+  
+'@
+}
+
+        $_
+        
+    } | Set-Content "ReturnsNotFound.Step.Definitions.cs"
+
+#!markdown
+
+4. Теперь можно определять шаг:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests/ReturnsNotFoundFeature
+
+(Get-Content "ReturnsNotFound.Step.Definitions.cs") | 
+    Foreach-Object {
+        if ($_ -match "// When") 
+        {
+@'
+    _response = await _client!.GetAsync("/non-exists");
+'@
+        }
+        else
+        {
+          $_
+        }
+        
+    } | Set-Content "ReturnsNotFound.Step.Definitions.cs"
+
+#!markdown
+
+5. Остался шаг Приложение отвечает 404 Not Found ошибкой. На этом шаге остаетс только проверить код ответа. Должен быть 404:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests/ReturnsNotFoundFeature
+
+(Get-Content "ReturnsNotFound.Step.Definitions.cs") | 
+    Foreach-Object {
+        if ($_ -match "// Then") 
+        {
+@'
+    Assert.Equal(404, (int) _response!.StatusCode);
+'@
+        }
+        else
+        {
+          $_
+        }
+        
+    } | Set-Content "ReturnsNotFound.Step.Definitions.cs"
+
+#!markdown
+
+6. Убедимся, что проект собирается и тест запускается:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests
+
+dotnet test
+
+#!markdown
+
+7. Как ни странно, но тест выполняется успешно, несмотря на то, что мы ничего не делали. Это происходит из-за того, что ASP .NET Core определяет некоторое поведение по-умолчанию и, в частности, если не находится контроллер, способный обработать запрос, то фрейворк сам возвращает 404 ошибку. 
+
+ 
+Возникает естсественный вопрос: нужно ли нам реализовавать обработку 404 ошибки явно, если фреймворк может обработать эту ошибку самостоятельно?  
+  
+Ответ на этот вопрос - положительный. Сейчас у нас нет ни одного контроллера, но скоро нам предстоит реализовать контроллер, который будет определять url для редиректа. Любая ссылка будет обрабатываться этим контроллером, а значит поведение, предоставляемое фреймворком по-умолчанию, в этом случае нам не подходит.  
+
+Чтобы тест не выполнился, необходимо определить контроллер, который будет обрабатывать все ссылки;
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+rm -f "RedirectSmartLinkController.cs"
+
+New-Item "RedirectSmartLinkController.cs" -ItemType File -Value @'
+using Microsoft.AspNetCore.Mvc;
+
+namespace Redirector;
+
+[ApiController]
+[Route("{*slug}")]
+public class RedirectSmartLinkController() : ControllerBase
+{
+    [HttpGet]
+    public ActionResult Get(string slug)
+    {   
+        return Ok();
+    }
+}
+'@
+
+#!markdown
+
+8. Проверим тесты еще раз:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests
+
+dotnet test
+
+#!markdown
+
+Теперь можно приступать к разработке.
+
+#!markdown
+
+## Разработка функционала.
+
+Проверку на существование правил редиректа для умной ссылки с точки зрения принципа единственной отвественности удобнее всего сделать в middleware.  
+  
+1. Разрабтку функциоанала выполним в папке ReturnsNotFoundFeature.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+rm -rf ReturnsNotFoundFeature
+
+mkdir -p ReturnsNotFoundFeature
+
+#!markdown
+
+2. Начнем разработку с middleware, назовем ее - The_App_Responses_404_Not_Found_Middleware.
+
+```
+public class The_App_Responses_404_Not_Found_Middleware : IMiddleware
+{
+    public async Task InvokeAsync(HttpContext httpContext, RequestDelegate next)
+    {
+        
+    }
+}
+```
+  
+Нам необходимо реализовать в коде: Как пользователь, я могу попытаться открыть в браузере умную ссылку, для которой не определены правила редиректа, и увидеть 404 ошибку, чтобы понять, что такой умной ссылки не существует.  
+  
+Выразим в коде фразу "умная ссылка, для которой правила редиректа не существуют". Из этой фразы напрашиваются два кандидата в классы: умная ссылка и правила редиректа.  
+  
+Как сказано правил редиректа не существует. Может ли то, чего нет, представлено вполне конкретным объектом? Есть шанс получить противоречие. С точки зрения DDD существуют репозитории объектов, а вот в репозиторий сделать запрос с проверкой о наличии объекта в репозитории волне естественно. Репозиторий будет представлен интерфейсом IRedirectRulesRepository. Экземпляр этого интерфейса будет передаваться в конструктор middleware с помощью инъекции зависимостей.
+
+```
+public interface IRedirectRulesRepository
+{
+}
+```
+
+Методы этого репозитория определим в процессе реализации нашей middleware:
+
+```
+public class The_App_Responses_404_Not_Found_Middleware(
+  IRedirectRulesRepository rulesSet
+) : IMiddleware
+{
+    public async Task InvokeAsync(HttpContext httpContext, RequestDelegate next)
+    {
+        if(!await rulesSet.ContainsRedirectRulesFor(???))
+        {
+          httpContext.Response.StatusCode = 404;
+        }
+        else
+        {
+          await next(httpContext);  
+        }
+    }
+}
+```
+  
+Вместо многоточия должен быть код, который определяет умную ссылку. Заметим, что от умной ссылки в middleware не требуется никакого поведения, только значение. А значит умную ссылку можно представить в виде объекта-значения. На данный момент ссылку удобно представить в виде строки.  
+
+```
+public interface IRedirectRulesRepository
+{
+  Task<bool> ContainsRedirectRulesFor(string smartLink);
+}
+```
+
+Приложение получает умную ссылку во входящем HTTP-запросе. Значит у нас есть правило, по которому мы извлекаем ссылку из HTTP-запроса. Чтобы отделить middleware от логики извлечения умной ссылки из http-запроса, введем инетфейс IRedirectorHTTPRequest со свойством SmartLink. 
+
+```
+public interface IRedirectHTTPRequest
+{
+  string SmartLink
+  {
+    get;
+  }
+}
+```
+
+middleware принимает следующий вид:
+```
+public class The_App_Responses_404_Not_Found_Middleware(
+  IRedirectRulesRepository rulesSet,
+  IRedirectorHttpRequest request
+) : IMiddleware
+{
+    public async Task InvokeAsync(HttpContext httpContext, RequestDelegate next)
+    {
+        if(!await rulesSet.ContainsRedirectRulesFor(request.SmartLink))
+        {
+          httpContext.Response.StatusCode = 404;
+        }
+        else
+        {
+          await next(httpContext);  
+        }
+    }
+}
+```
+
+Заметим, что 404 ошибку надо выдавать, только если метод запроса GET или HEAD, в остальных случаях - 405 ошибку.
+Middleware и интерфейс IRedirectorHttpRequest принимают окончательный вид: 
+```
+public class The_App_Responses_404_Not_Found_Middleware(
+  IRedirectRulesRepository rulesSet,
+  IRedirectorHttpRequest request
+) : IMiddleware
+{
+    public async Task InvokeAsync(HttpContext httpContext, RequestDelegate next)
+    {
+        if(!await rulesSet.ContainsRedirectRulesFor(request.SmartLink) && request.MethodIsSupported)
+        {
+          httpContext.Response.StatusCode = 404;
+        }
+        else
+        {
+          await next(httpContext);  
+        }
+    }
+}
+```
+Кроме того, переименуем интерфейс `IRedirectorHttpRequest` в `ISupportedHttpRequest`, такое название лучше отражает смысл этого интерфейса.
+```
+public interface IRedirectHTTPRequest
+{
+  string SmartLink
+  {
+    get;
+  }
+  bool MethodIsSupported
+  {
+    get;
+  }
+}
+```
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector/ReturnsNotFoundFeature
+
+rm -f "TheAppResponse_404_NotFound_Middleware.cs"
+
+New-Item "TheAppResponse_404_NotFound_Middleware.cs" -ItemType File -Value @'
+namespace Redirector;
+
+public class The_App_Responses_404_Not_Found_Middleware(
+  IRedirectRulesRepository rulesSet, 
+  ISupportedHttpRequest httpRequest
+) : IMiddleware
+{
+    public async Task InvokeAsync(HttpContext httpContext, RequestDelegate next)
+    {
+        if(!await rulesSet.ContainsRedirectRulesFor(httpRequest.SmartLink) && httpRequest.MethodIsSupported)
+        {
+          httpContext.Response.StatusCode = 404;
+        }
+        else
+        {
+          await next(httpContext);  
+        }
+    }
+}
+
+'@
+
+#!markdown
+
+Интерфейсы вынесем в отдельную папку - в будущем перенесем их в отдельную библиотеку.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector/ReturnsNotFoundFeature
+
+rm -rf ReturnsNotFoundInterfaces
+
+mkdir ReturnsNotFoundInterfaces
+cd ReturnsNotFoundInterfaces
+
+New-Item "IRedirectRulesRepository.cs" -ItemType File -Value @'
+namespace Redirector;
+
+public interface IRedirectRulesRepository
+{
+    Task<bool> ContainsRedirectRulesFor(string smartLink);
+}
+
+'@
+
+New-Item "ISupportedHttpRequest.cs" -ItemType File -Value @'
+namespace Redirector;
+
+public interface ISupportedHttpRequest
+{
+  bool MethodIsSupported
+  {
+    get;
+  }
+  string SmartLink
+  {
+    get;
+  }
+}
+
+'@
+
+#!markdown
+
+3. Зарегистриуем middleware в DI-контейнере и конвейере зависимостей.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+(Get-Content "Program.cs") | 
+    Foreach-Object {
+        $_
+        if ($_ -match "// Add services to the container.") 
+        {
+@'
+//Register ReturnsNotFoundFeature
+builder.Services.AddTransient<The_App_Responses_404_Not_Found_Middleware>();
+'@
+        }
+        if ($_ -match "app.UseAuthorization()") 
+        {
+@'
+// Attach ReturnsNotFoundFeature 
+app.UseMiddleware<The_App_Responses_404_Not_Found_Middleware>();
+'@
+        }
+        
+    } | Set-Content "Program.cs"
+
+#!markdown
+
+4. Определим реализацию ISupportedHttpRequest. Выделим реализацию в отдельную папку - в будущем оформим в виде отдельной библиотеки.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector/ReturnsNotFoundFeature
+
+rm -rf ReturnsNotFoundFacadeForHttp
+
+mkdir ReturnsNotFoundFacadeForHttp
+cd ReturnsNotFoundFacadeForHttp
+
+New-Item "SupportedHttpRequest.cs" -ItemType File -Value @'
+namespace Redirector;
+
+public class SupportedHttpRequest(IHttpContextAccessor accessor) : ISupportedHttpRequest
+{
+  static string[] supportedHttpMethods = new string[] {"GET", "HEAD"};
+
+  public bool MethodIsSupported => supportedHttpMethods.Contains(accessor.HttpContext!.Request.Method);
+
+  public string SmartLink => accessor.HttpContext!.Request.Path;
+}
+'@
+
+#!markdown
+
+Зарегистрируем зависимость в DI контейнере
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+(Get-Content "Program.cs") | 
+    Foreach-Object {
+        $_
+        if ($_ -match "AddTransient<The_App_Responses_404_Not_Found_Middleware>") 
+        {
+@'
+// Attach ReturnsNotFoundFacadeForHttp 
+builder.Services.AddScoped<ISupportedHttpRequest, SupportedHttpRequest>();
+
+// Add the dependency from IHttpContextAccessor
+builder.Services.AddHttpContextAccessor();
+'@
+        }
+        
+    } | Set-Content "Program.cs"
+
+#!markdown
+
+5. Реализуем интерфейс IRedirectRulesRepository: 
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector/ReturnsNotFoundFeature
+
+rm -rf ReturnsNotFoundFacadeForMongoDb
+
+mkdir ReturnsNotFoundFacadeForMongoDb
+cd ReturnsNotFoundFacadeForMongoDb
+
+New-Item "RedirectRulesRepository.cs" -ItemType File -Value @'
+namespace Redirector;
+
+using MongoDB.Driver;
+using MongoDB.Bson;
+
+public class RedirectRulesRepository(IMongoCollection<BsonDocument> collection) : IRedirectRulesRepository
+{
+    public async Task<bool> ContainsRedirectRulesFor(string smartLink)
+    {
+        FilterDefinition<BsonDocument> filter = Builders<BsonDocument>.Filter.Eq("slug", smartLink);
+        return  await collection.Find(filter).FirstOrDefaultAsync() != null;
+    }
+}
+
+'@
+
+#!markdown
+
+Зарегистрируем зависимость в DI контейнере:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+(Get-Content "Program.cs") | 
+    Foreach-Object {
+        $_
+        if ($_ -match "AddScoped<ISupportedHttpRequest, SupportedHttpRequest>") 
+        {
+@'
+// Attach ReturnsNotFoundFacadeForMongoDB
+builder.Services.AddScoped<IRedirectRulesRepository, RedirectRulesRepository>();
+'@
+        }
+        if ($_ -match "using Redirector;") 
+        {
+@'
+using Microsoft.Extensions.Options;
+
+'@
+        }
+        
+    } | Set-Content "Program.cs"
+
+#!markdown
+
+5. Осталось только зарегистрировать в DI зависисмости, связанные в MongoDB:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/src/Redirector
+
+(Get-Content "Program.cs") | 
+    Foreach-Object {
+        if ($_ -match "Get<MongoDBSettings>")
+        {
+        }
+        else
+        {
+          $_
+        }
+        if ($_ -match "// Add services to the container.") 
+        {
+@'
+var mongoDBSettings = builder.Configuration.GetSection("RedirectorMongoDB").Get<MongoDBSettings>();
+
+builder.Services.AddSingleton<IMongoClient>(sp =>
+{ 
+  return new MongoClient(mongoDBSettings!.ConnectionURI);
+});
+builder.Services.AddSingleton<IMongoCollection<BsonDocument>>(sp =>
+{
+  var client = sp.GetRequiredService<IMongoClient>();
+  var database = client.GetDatabase(mongoDBSettings!.DatabaseName);
+  return database.GetCollection<BsonDocument>(mongoDBSettings.CollectionName);
+});
+'@
+        }
+        
+    } | Set-Content "Program.cs"
+
+#!markdown
+
+6. Проверим теперь, что проект собирается и тест выполняется успешно.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks
+
+dotnet test
+
+#!markdown
+
+7. Подготовим изменения к коммиту.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO
+
+# проверим, что ничего лишнего нет в репозитори
+git status -s
+# вытягиваем последние изменения из репозитория
+git pull origin main
+# убедимся, что нет конфликтов
+
+# добавим изменения в индекс
+git add *
+# коммитим изменения
+git commit -m "Добавлен сценарий Приложение отвечает 404 Not Found ошибкой на GET запрос, если для запрашиваемой умной ссылки не определены правила редиректа"
+
+#!markdown
+
+## Сценарий Приложение не отвечает 404 Not Found ошибкой на GET запрос, если для запрашиваемой умной ссылки определены правила редиректа
+
+#!markdown
+
+1. Начнем со сценария:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests/ReturnsNotFoundFeature
+
+Add-Content "ReturnsNotFound.feature" -Value @'
+
+Сценарий: Приложение не отвечает 404 Not Found ошибкой на GET запрос, если для запрашиваемой умной ссылки определены правила редиректа
+    Дано Для умной ссылки /exists определены правила редиректа
+    Когда Клиент отправляет GET-запрос на url /exists 
+    Тогда Приложение не отвечает 404 Not Found ошибкой
+'@
+
+#!markdown
+
+2. Добавим документ с правилами редиректа в коллекцию MongoDB. Для этого инициализируем соотвестующие переменные:
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests/ReturnsNotFoundFeature
+
+(Get-Content "ReturnsNotFound.Step.Definitions.cs") | 
+    Foreach-Object {
+        $_
+        if ($_ -match ".BaseAddress = new") 
+        {
+@'
+
+    var mongoDBSettings = _factory.Services.GetService<IConfiguration>()!.GetSection("RedirectorMongoDB")!.Get<MongoDBSettings>();
+    var client = new MongoClient(mongoDBSettings!.ConnectionURI); 
+    var database = client.GetDatabase(mongoDBSettings.DatabaseName);
+    _smartLinksCollection = database.GetCollection<BsonDocument>(mongoDBSettings.CollectionName);
+'@
+        }
+        if ($_ -match "HttpResponseMessage?") 
+        {
+@'
+
+    readonly IMongoCollection<BsonDocument> _smartLinksCollection;
+'@
+        }
+        if ($_ -match "using Microsoft.AspNetCore.Mvc.Testing") 
+        {
+@'
+   
+using MongoDB.Driver;
+using MongoDB.Bson;
+'@
+        }
+        
+    } | Set-Content "ReturnsNotFound.Step.Definitions.cs"
+
+#!markdown
+
+3. Добавим шаги сценария в ReturnsNotFound.Step.Definitions.cs.
+```
+  // Функция: Приложение не отвечает 404 Not Found ошибкой на GET запрос,
+  // если для запрашиваемой умной ссылки определены правила редиректа
+
+  [Given("Для умной ссылки /exists определены правила редиректа")]
+  public async Task Given_Redirect_Rules_Are_Defined_For_exists_SmartLink()
+  {
+    await _smartLinksCollection.InsertOneAsync(BsonDocument.Parse("{ slug: \"/exists\" }"));
+  }
+ 
+  [When("Клиент отправляет GET-запрос на url /exists")]
+  public async Task A_Client_Sends_Get_Request_On_Url_exists()
+  {
+    _response = await _client!.GetAsync("/exists");
+  }
+  
+  [Then("Приложение не отвечает 404 Not Found ошибкой")]
+  public void The_App_Resonses_With_Not_404_Not_Found_Error()
+  {
+    Assert.NotEqual(404, (int) _response!.StatusCode);
+  }
+
+  // Определение шагов завершено
+```
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks/tests/Redirector.Tests/ReturnsNotFoundFeature
+
+(Get-Content "ReturnsNotFound.Step.Definitions.cs") | 
+    Foreach-Object {
+          $_
+        if ($_ -match "// Определение шагов завершено") 
+        {
+@'
+
+  // Функция: Приложение не отвечает 404 Not Found ошибкой на GET запрос,
+  // если для запрашиваемой умной ссылки определены правила редиректа
+
+  [Given("Для умной ссылки /exists определены правила редиректа")]
+  public async Task Given_Redirect_Rules_Are_Defined_For_exists_SmartLink()
+  {
+    await _smartLinksCollection.InsertOneAsync(BsonDocument.Parse("{ slug: \"/exists\" }"));
+  }
+ 
+  [When("Клиент отправляет GET-запрос на url /exists")]
+  public async Task A_Client_Sends_Get_Request_On_Url_exists()
+  {
+    _response = await _client!.GetAsync("/exists");
+  }
+  
+  [Then("Приложение не отвечает 404 Not Found ошибкой")]
+  public void The_App_Resonses_With_Not_404_Not_Found_Error()
+  {
+    Assert.NotEqual(404, (int) _response!.StatusCode);
+  }
+
+  // Определение шагов завершено
+'@
+        }
+                
+    } | Set-Content "ReturnsNotFound.Step.Definitions.cs"
+
+#!markdown
+
+4. Проверим, что проект собирается, а тесты выполняются успешно.
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO/SmartLinks
+
+dotnet test
+
+#!markdown
+
+5. Закоммитим изменения
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO
+
+# проверим, что ничего лишнего нет в репозитори
+git status -s
+# вытягиваем последние изменения из репозитория
+git pull origin main
+# убедимся, что нет конфликтов
+
+# добавим изменения в индекс
+git add *
+# коммитим изменения
+git commit -m "Добавлен сценарий Приложение не отвечает 404 Not Found ошибкой на GET запрос, если для запрашиваемой умной ссылки определены правила редиректа"
+
+#!markdown
+
+## Завершаем работу над задачей
+
+#!pwsh
+
+cd $env:ROOTDIR/$env:REPO
+
+git push origin The-App-Respones-404-Not-Found-If-Redirect-Rules-Are-Not-Defined-For-The-SmartLink
+
+#!markdown
+
+Переходим на GitHub. Оформляем pull Request.
+
+После того, как Pull Request принят, работа на этой практической работой завершена.
+
+**Замечание.** Этот Pull Request принимаем самтостоятельно.
