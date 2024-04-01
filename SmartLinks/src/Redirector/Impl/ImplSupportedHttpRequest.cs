@@ -5,6 +5,4 @@ public class ImplSupportedHttpRequest(IHttpContextAccessor accessor) : ISupporte
   static string[] supportedHttpMethods = new string[] {"GET", "HEAD"};
 
   public bool MethodIsSupported => supportedHttpMethods.Contains(accessor.HttpContext!.Request.Method);
-
-  public string SmartLink => accessor.HttpContext!.Request.Path;
 }
