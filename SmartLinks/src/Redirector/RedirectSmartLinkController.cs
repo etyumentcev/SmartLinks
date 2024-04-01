@@ -7,6 +7,7 @@ namespace Redirector;
 public class RedirectSmartLinkController() : ControllerBase
 {
     [HttpGet]
+    [HttpHead]
     public ActionResult Get(string slug)
     {   
         return Ok();

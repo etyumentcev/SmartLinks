@@ -6,8 +6,4 @@ public interface ISupportedHttpRequest
   {
     get;
   }
-  string SmartLink
-  {
-    get;
-  }
 }
