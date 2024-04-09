@@ -13,11 +13,13 @@ public class ImplRedirectRule : IRedirectRule
         Language = "any";
     }    
 
+    [BsonElement("start")]
     public DateTime Start
     {
         get; set;
     }
 
+    [BsonElement("end")]
     public DateTime End
     {
         get; set;
