@@ -34,16 +34,20 @@ public sealed class TemporaryRediectStepDefinitions
   [Given("Для умной ссылки /unconditional-redirect определено правило редиректа")]
   public async void Given_One_Redirect_Rule_Is_Defined_For_unconidtional_redirect_SmartLink()
   {
-    await _smartLinksCollection.InsertOneAsync(BsonDocument.Parse("{ slug: \"/unconditional-redirect\", rules: [{redirectTo: \"hwdtech.ru\"}]}"));
+    await _smartLinksCollection.InsertOneAsync(
+      BsonDocument.Parse(
+        "{ slug: \"/unconditional-redirect\", rules: [{language: \"ru-Ru\", redirectTo: \"hwdtech.ru\"}]}"
+    ));
   }
  
   [When("Клиент отправляет GET-запрос на url /unconditional-redirect")]
   public async Task A_Client_Sends_Get_Request_On_Url_uncoditional_redirect()
   {
+    _client.DefaultRequestHeaders.Add("accept-language", "ru-Ru");
     _response = await _client!.GetAsync("/unconditional-redirect");
   }
   
-  [Then("Приложение отвечает 307 Temporary Rediect")]
+  [Then("Приложение отвечает 307 Temporary Redirect")]
   public void The_App_Resonses_With_307_Temporary_Redirect_Error()
   {
     Assert.Equal(307, (int) _response!.StatusCode);

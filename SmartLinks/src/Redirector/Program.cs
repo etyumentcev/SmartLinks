@@ -51,6 +51,8 @@ builder.Services.AddScoped<IStatableSmartLinkRepository, ImplStatableSmartLinkRe
 
 builder.Services.AddScoped<ISmartLinkRedirectService, ImplSmartLinkRedirectService>();
 builder.Services.AddScoped<ISmartLinkRedirectRulesRepository, ImplSmartLinkRedirectRulesRepository>();
+builder.Services.AddScoped<IRedirectableSmartLink, ImplRedirectableSmartLink>();
+
 
 var app = builder.Build();
 
