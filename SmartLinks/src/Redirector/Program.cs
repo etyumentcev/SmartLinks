@@ -34,6 +34,7 @@ builder.Services.AddTransient<The_App_Responses_422_Uprocessable_Content_Middlew
 builder.Services.AddScoped<IFreezeSmartLinkService, ImplFreezeSmartLinkService>();
 
 builder.Services.AddTransient<The_App_Responses_405_Method_Not_Allowed_Middleware>();
+builder.Services.AddTransient<The_App_Responses_307_Temporary_Redirect_Middleware>();
 
 
 
@@ -47,6 +48,11 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddScoped<IMongoDbRepository, ImplMongoDbRepository>();
 builder.Services.AddScoped<IStatableSmartLinkRepository, ImplStatableSmartLinkRepository>();
+
+builder.Services.AddScoped<ISmartLinkRedirectService, ImplSmartLinkRedirectService>();
+builder.Services.AddScoped<ISmartLinkRedirectRulesRepository, ImplSmartLinkRedirectRulesRepository>();
+builder.Services.AddScoped<IRedirectableSmartLink, ImplRedirectableSmartLink>();
+
 
 var app = builder.Build();
 
@@ -66,6 +72,8 @@ app.UseMiddleware<The_App_Responses_405_Method_Not_Allowed_Middleware>();
 app.UseMiddleware<The_App_Responses_404_Not_Found_Middleware>();
 // Attach ReturnsUnprocessableContentFeature
 app.UseMiddleware<The_App_Responses_422_Uprocessable_Content_Middleware>();
+
+app.UseMiddleware<The_App_Responses_307_Temporary_Redirect_Middleware>();
 
 app.MapControllers();
 

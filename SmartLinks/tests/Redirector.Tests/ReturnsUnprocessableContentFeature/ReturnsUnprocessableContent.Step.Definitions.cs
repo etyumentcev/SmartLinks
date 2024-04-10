@@ -68,5 +68,9 @@ public sealed class UnprocessableContentStepDefinitions
   {
     Assert.NotEqual(422, (int) _response!.StatusCode);
   }
-  // Определение шагов завершено
+  
+  public void Dispose()
+  {
+    _client.Dispose();
+  }
 }

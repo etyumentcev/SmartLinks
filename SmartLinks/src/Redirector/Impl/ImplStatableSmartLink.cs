@@ -7,12 +7,6 @@ using MongoDB.Bson.Serialization.Attributes;
 [BsonIgnoreExtraElements]
 public class ImplStatableSmartLink : IStatableSmartLink
 {
-  [BsonId]
-  public ObjectId Id
-  {
-    get;
-    set;
-  }
   [BsonElement("state")]
   [BsonDefaultValue("undefined")]
   public string State
