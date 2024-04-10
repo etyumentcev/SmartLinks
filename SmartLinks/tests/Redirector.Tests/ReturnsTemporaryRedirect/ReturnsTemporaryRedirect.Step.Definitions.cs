@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
    
 using MongoDB.Driver;
 using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Serializers;
 
 [Binding]
 public sealed class TemporaryRediectStepDefinitions
@@ -137,6 +138,13 @@ public sealed class TemporaryRediectStepDefinitions
     _client.DefaultRequestHeaders.Add("accept-language", "ru");
     _response = await _client!.GetAsync("/multi-redirect");
   }
+
+  public void Dispose()
+  {
+    _client.Dispose();
+  }
+
+
 }
 
 

@@ -87,4 +87,9 @@ public sealed class NotFoundStepDefinitions
   {
     _response = await _client!.GetAsync("/deleted");
   }
+  
+  public void Dispose()
+  {
+    _client.Dispose();
+  }
 }
