@@ -11,7 +11,7 @@ public class ImplRedirectRule : IRedirectRule
         Start = DateTime.MinValue;
         End = DateTime.MaxValue;
         Language = "any";
-    }    
+    }
 
     [BsonElement("start")]
     public DateTime Start
@@ -31,7 +31,7 @@ public class ImplRedirectRule : IRedirectRule
     {
         get; set;
     }
-    
+
     [BsonElement("redirectTo")]
     public string Redirect
     {

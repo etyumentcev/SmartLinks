@@ -1,9 +1,7 @@
-using Redirector;
 using Microsoft.Extensions.Options;
-
-
-using MongoDB.Driver;
 using MongoDB.Bson;
+using MongoDB.Driver;
+using Redirector;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,14 +11,14 @@ var mongoDBSettings = builder.Configuration.GetSection("RedirectorMongoDB").Get<
 builder.Services.AddScoped<ISmartLink, ImplSmartLink>();
 
 builder.Services.AddSingleton<IMongoClient>(sp =>
-{ 
-  return new MongoClient(mongoDBSettings!.ConnectionURI);
+{
+    return new MongoClient(mongoDBSettings!.ConnectionURI);
 });
 builder.Services.AddSingleton<IMongoCollection<BsonDocument>>(sp =>
 {
-  var client = sp.GetRequiredService<IMongoClient>();
-  var database = client.GetDatabase(mongoDBSettings!.DatabaseName);
-  return database.GetCollection<BsonDocument>(mongoDBSettings.CollectionName);
+    var client = sp.GetRequiredService<IMongoClient>();
+    var database = client.GetDatabase(mongoDBSettings!.DatabaseName);
+    return database.GetCollection<BsonDocument>(mongoDBSettings.CollectionName);
 });
 //Register ReturnsNotFoundFeature
 builder.Services.AddTransient<The_App_Responses_404_Not_Found_Middleware>();
@@ -79,7 +77,7 @@ app.MapControllers();
 
 if (app.Environment.IsDevelopment())
 {
-    var client = new MongoClient(mongoDBSettings!.ConnectionURI); 
+    var client = new MongoClient(mongoDBSettings!.ConnectionURI);
     var database = client.GetDatabase(mongoDBSettings.DatabaseName);
     var smartLinksCollection = database.GetCollection<BsonDocument>(mongoDBSettings.CollectionName);
 

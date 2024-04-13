@@ -1,10 +1,10 @@
 namespace Redirector;
 
-using MongoDB.Driver;
 using MongoDB.Bson;
+using MongoDB.Driver;
 
 public class ImplMongoDbRepository(
-    IMongoCollection<BsonDocument> collection, 
+    IMongoCollection<BsonDocument> collection,
     ISmartLink smartLink
 ) : IMongoDbRepository
 {

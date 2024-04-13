@@ -2,8 +2,8 @@ namespace Redirector;
 
 public interface ISmartLink
 {
-  public string Value 
-  {
-    get;
-  }
+    public string Value
+    {
+        get;
+    }
 }

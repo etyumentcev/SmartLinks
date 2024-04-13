@@ -8,7 +8,7 @@ public class RedirectSmartLinkController() : ControllerBase
 {
     [HttpGet]
     public ActionResult Get(string slug)
-    {   
+    {
         return StatusCode(429);
     }
 }

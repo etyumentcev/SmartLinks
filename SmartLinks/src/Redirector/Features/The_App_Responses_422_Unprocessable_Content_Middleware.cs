@@ -6,13 +6,13 @@ public class The_App_Responses_422_Uprocessable_Content_Middleware(
 {
     public async Task InvokeAsync(HttpContext httpContext, RequestDelegate next)
     {
-        if(await freezableSmartLinkService.ShouldSmartLinkBeFreezed())
+        if (await freezableSmartLinkService.ShouldSmartLinkBeFreezed())
         {
-          httpContext.Response.StatusCode = 422;
+            httpContext.Response.StatusCode = 422;
         }
         else
         {
-          await next(httpContext);  
+            await next(httpContext);
         }
     }
 }
